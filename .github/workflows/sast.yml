@@ -1,0 +1,41 @@
+name: SAST
+
+on:
+  pull_request: {}
+  push:
+    branches:
+      - main
+  schedule:
+    - cron: "17 2 * * 1"
+
+permissions: {}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  semgrep:
+    name: Semgrep (OWASP)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    container:
+      image: semgrep/semgrep:1.179.0@sha256:93963d9295a366f59e4850127b1550400ee7b388f04fe144e4a1f6325d96e01b
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      # Free private repositories have no code scanning, so findings fail the job and print in the log.
+      - name: Scan source
+        run: >-
+          semgrep scan
+          --config p/owasp-top-ten
+          --config p/typescript
+          --config p/nodejsscan
+          --config p/secrets
+          --severity ERROR --severity WARNING
+          --error --metrics=off
+          src test scripts

@@ -1,0 +1,31 @@
+name: OSV-Scanner
+
+on:
+  pull_request: {}
+  push:
+    branches:
+      - main
+  schedule:
+    - cron: "37 2 * * 1"
+
+permissions: {}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # Pull requests get the same full lockfile scan as the pre-push gate. A diff scan also scans the
+  # base branch, which fails when the base has no lockfile, and pre-push cannot reproduce that.
+  scan:
+    name: Scan
+    permissions:
+      actions: read # Needed by the reusable workflow to read workflow run metadata.
+      contents: read
+      security-events: write # Required by the reusable workflow's declared permissions; unused without SARIF upload.
+    uses: google/osv-scanner-action/.github/workflows/osv-scanner-reusable.yml@a345acffa64b0eaede81a3d9aae6141214d9c8fc # v2.6.0
+    with:
+      # Code scanning needs GitHub Advanced Security on private repositories; fail the job instead.
+      upload-sarif: false
+      scan-args: |-
+        --lockfile=pnpm-lock.yaml

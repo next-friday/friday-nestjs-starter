@@ -1,0 +1,8 @@
+*.tsbuildinfo
+.eslintcache
+.husky/_
+**/.next
+coverage
+dist
+node_modules
+pnpm-lock.yaml

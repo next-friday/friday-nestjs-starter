@@ -1,0 +1,179 @@
+#!/usr/bin/env sh
+# Pre-push gate for edit-push loops, human or agent.
+# - Gates come from the `verify` script in package.json (single source of truth), cheapest first.
+# - Stops at the first failing gate and prints only its tail; the full log stays under .git/pre-push/.
+# - Ends with one verdict line: `pre-push: PASS ...` or `pre-push: FAIL gate=... rerun="..."`.
+# - A tree that already passed is not verified again, so retried and amended pushes are fast.
+set -eu
+
+remote_name=$1
+remote_url=$2
+zero=$(git hash-object --stdin < /dev/null | tr '0-9a-f' '0')
+head_oid=$(git rev-parse HEAD)
+state_dir=$(git rev-parse --git-path pre-push)
+passed_file="$state_dir/passed-trees"
+has_push=0
+has_heavy=0
+
+mkdir -p "$state_dir"
+
+say() {
+  printf 'pre-push: %s\n' "$*" >&2
+}
+
+# Prints the failing gate's tail and the verdict line, then stops the push.
+fail() {
+  gate=$1
+  rerun=$2
+  log=$3
+
+  if [ -s "$log" ]; then
+    printf '%s\n' "----- last 40 lines of $log -----" >&2
+    tail -n 40 "$log" >&2
+    printf '%s\n' "-----" >&2
+  fi
+
+  say "FAIL gate=$gate rerun=\"$rerun\" log=$log"
+  exit 1
+}
+
+# Runs one gate with its output captured to .git/pre-push/<gate>.log.
+run_gate() {
+  gate=$1
+  command=$2
+  log="$state_dir/$gate.log"
+  gate_started=$(date +%s)
+
+  if sh -c "$command" > "$log" 2>&1; then
+    say "ok $gate ($(($(date +%s) - gate_started))s)"
+  else
+    fail "$gate" "$command" "$log"
+  fi
+}
+
+resolve_compare_branch() {
+  for candidate_ref in "$remote_name/main" origin/main main; do
+    if git rev-parse --verify --quiet "$candidate_ref^{commit}" > /dev/null; then
+      printf '%s\n' "$candidate_ref"
+      return 0
+    fi
+  done
+
+  for candidate_remote in $(git remote); do
+    if [ "$(git remote get-url "$candidate_remote")" = "$remote_url" ] \
+      && git rev-parse --verify --quiet "$candidate_remote/main^{commit}" > /dev/null; then
+      printf '%s\n' "$candidate_remote/main"
+      return 0
+    fi
+  done
+
+  return 1
+}
+
+# Each CI scanner has a local gate, so these tools must be installed (uv provides uvx).
+for tool in gitleaks trufflehog osv-scanner uv gh; do
+  if ! command -v "$tool" > /dev/null 2>&1; then
+    fail preflight "brew install $tool" ""
+  fi
+done
+
+while IFS=' ' read -r local_ref local_oid remote_ref remote_oid || [ -n "${local_ref:-}" ]; do
+  : "$local_ref" "$remote_ref"
+
+  if [ "$local_oid" = "$zero" ]; then
+    continue
+  fi
+
+  pushed_oid=$(git rev-parse "$local_oid^{commit}")
+  if [ "$pushed_oid" != "$head_oid" ]; then
+    say "pushed ref $local_ref ($pushed_oid) is not the checked-out commit ($head_oid)."
+    fail preflight "git switch ${local_ref#refs/heads/} && git push $remote_name ${local_ref#refs/heads/}" ""
+  fi
+
+  has_push=1
+
+  if [ "$remote_oid" = "$zero" ]; then
+    log_opts="$local_oid --not --remotes=$remote_name"
+    since_opt=""
+  elif git cat-file -e "$remote_oid^{commit}" 2> /dev/null; then
+    log_opts="$remote_oid..$local_oid"
+    since_opt="--since-commit=$remote_oid"
+  else
+    log_opts="$local_oid --not --remotes=$remote_name"
+    since_opt=""
+  fi
+
+  run_gate secrets "gitleaks git --redact --no-banner --log-opts='$log_opts' ."
+  # Mirrors the TruffleHog job in .github/workflows/secret-scan.yml.
+  run_gate trufflehog "trufflehog git file://. --branch=$local_oid $since_opt --results=verified,unknown --fail --no-update"
+
+  if git log -m --format= --name-only $log_opts -- \
+    . \
+    ':(exclude,glob)**/*.md' \
+    ':(exclude,glob).github/ISSUE_TEMPLATE/**' \
+    ':(exclude).github/pull_request_template.md' \
+    ':(exclude).github/dependabot.yml' \
+    ':(exclude).github/labeler.yml' \
+    ':(exclude,glob).vscode/**' \
+    ':(exclude,glob).claude/**' \
+    ':(exclude,glob).agents/**' \
+    ':(exclude)CLAUDE.md' \
+    ':(exclude)AGENTS.md' \
+    ':(exclude,glob)**/*.png' \
+    ':(exclude,glob)**/*.svg' \
+    ':(exclude,glob)**/*.jpg' \
+    ':(exclude).gitignore' \
+    ':(exclude).gitattributes' \
+    | grep -q .; then
+    has_heavy=1
+  fi
+done
+
+if [ "$has_push" -eq 0 ] || [ "$has_heavy" -eq 0 ]; then
+  say "PASS secrets only (no code changes)"
+  exit 0
+fi
+
+if [ -n "$(git status --porcelain)" ]; then
+  say "working tree differs from HEAD, so gates would not test what is pushed."
+  fail preflight "git stash push --include-untracked && git push" ""
+fi
+
+tree=$(git rev-parse "HEAD^{tree}")
+if [ -f "$passed_file" ] && grep -qx "$tree" "$passed_file"; then
+  say "PASS tree=$tree (already verified)"
+  exit 0
+fi
+
+if [ -z "${DATABASE_URL:-}" ]; then
+  fail preflight "export DATABASE_URL=postgres://localhost:5432/friday_nestjs_starter" ""
+fi
+
+run_gate database "node --input-type=module -e 'import pg from \"pg\"; const client = new pg.Client({connectionString: process.env.DATABASE_URL}); await client.connect(); await client.end();'"
+
+if ! compare_branch=$(resolve_compare_branch); then
+  fail preflight "git fetch $remote_name main" ""
+fi
+
+started=$(date +%s)
+
+# Versions and arguments mirror .github/workflows/zizmor.yml, osv-scanner.yml, and sast.yml.
+run_gate zizmor 'GH_TOKEN=$(gh auth token) uvx zizmor@1.30.1 --persona pedantic .github'
+run_gate osv-scanner "osv-scanner scan --lockfile=pnpm-lock.yaml"
+run_gate semgrep "uvx semgrep@1.179.0 scan --config p/owasp-top-ten --config p/typescript --config p/nodejsscan --config p/secrets --severity ERROR --severity WARNING --error --metrics=off --quiet src test scripts"
+
+# One gate per `pnpm <script>` in the verify script, in its order.
+# CI exposes DATABASE_URL only to the E2E job, so every other gate runs without it.
+for script in $(node -p 'require("./package.json").scripts.verify.split("&&").map((step) => step.trim().replace(/^pnpm /u, "")).join(" ")'); do
+  if [ "$script" = "test:e2e" ]; then
+    run_gate "$script" "pnpm $script"
+  else
+    run_gate "$script" "env -u DATABASE_URL pnpm $script"
+  fi
+done
+
+run_gate patch-coverage "node scripts/check-patch-coverage.ts --compare-branch $compare_branch --fail-under 95 coverage/lcov.info"
+run_gate audit "pnpm audit"
+
+printf '%s\n' "$tree" >> "$passed_file"
+say "PASS tree=$tree ($(($(date +%s) - started))s)"

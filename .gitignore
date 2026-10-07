@@ -1,0 +1,52 @@
+# Dependencies
+node_modules
+
+# Local env files
+.env*
+!.env.example
+
+# Testing
+coverage
+
+# Build Outputs
+dist
+
+# Logs
+logs
+*.log
+
+# Debug
+npm-debug.log*
+pnpm-debug.log*
+.pnpm-store
+
+# IDE
+/.idea
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+
+# Temp
+.temp
+.tmp
+
+# Private keys and keystores
+*.pem
+*.key
+*.p12
+*.pfx
+*.jks
+*.keystore
+id_rsa*
+id_ed25519*
+
+# Misc
+*.tsbuildinfo
+.DS_Store
+.eslintcache
+
+# agent execution artifacts
+/.claude/settings.local.json
+/.claude/worktrees/
+/.superpowers/
+/docs/superpowers/

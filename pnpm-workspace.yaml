@@ -1,0 +1,18 @@
+packages:
+  - "."
+engineStrict: true
+allowBuilds:
+  "@scarf/scarf": false
+  esbuild: false
+  unrs-resolver: true
+overrides:
+  "@esbuild-kit/core-utils>esbuild": ^0.25.0
+  "katex@>=0.11.0 <0.18.2": ^0.18.2
+  tmp@<0.2.6: ^0.2.6
+  undici@<6.28.1: ^6.28.1
+audit:
+  ignore:
+    # Temporary transitive advisory with no patched release.
+    # Path: @next/eslint-plugin-next > fast-glob > micromatch > braces.
+    # Remove as soon as braces publishes a version that fixes GHSA-vfj7-8cjw-p6xm.
+    - GHSA-vfj7-8cjw-p6xm

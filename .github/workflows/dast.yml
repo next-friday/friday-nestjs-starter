@@ -1,0 +1,73 @@
+name: DAST
+
+on:
+  pull_request:
+    paths-ignore:
+      - "**/*.md"
+      - ".agents/**"
+  push:
+    branches:
+      - main
+  schedule:
+    - cron: "57 2 * * 1"
+  workflow_dispatch: {}
+
+permissions: {}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  zap-api-scan:
+    name: OWASP ZAP API Scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    services:
+      postgres:
+        image: postgres:17-alpine@sha256:b0f9560a2de083e2cc7382e75f808c7381a32852a7ec49117deedb300e552b24
+        env:
+          POSTGRES_DB: friday_nestjs_starter
+          POSTGRES_PASSWORD: postgres # Ephemeral CI-only database.
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgres://postgres:postgres@localhost:5432/friday_nestjs_starter
+      PORT: "3000"
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - name: Set up pnpm
+        uses: $/.github/actions/setup-pnpm
+      - name: Build application
+        run: pnpm build
+      - name: Start application
+        run: |
+          node dist/main.js > app.log 2>&1 &
+          for attempt in $(seq 1 30); do
+            if curl --silent --fail "http://localhost:$PORT/docs-json" > /dev/null; then
+              exit 0
+            fi
+            sleep 1
+          done
+          cat app.log
+          exit 1
+      - name: Scan OpenAPI surface
+        uses: zaproxy/action-api-scan@5158fe4d9d8fcc75ea204db81317cce7f9e5453d # v0.10.0
+        with:
+          target: http://localhost:3000/docs-json
+          format: openapi
+          rules_file_name: .zap/rules.tsv
+          # Report-only until the first baseline is triaged into .zap/rules.tsv; then set true to gate.
+          fail_action: false
+          allow_issue_writing: false
+          artifact_name: zap-api-scan
