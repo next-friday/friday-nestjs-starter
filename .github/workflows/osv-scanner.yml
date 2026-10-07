@@ -15,23 +15,10 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  scan-pr:
-    name: Scan pull request
-    if: github.event_name == 'pull_request'
-    permissions:
-      actions: read # Needed by the reusable workflow to read workflow run metadata.
-      contents: read
-      security-events: write # Required by the reusable workflow's declared permissions; unused without SARIF upload.
-    uses: google/osv-scanner-action/.github/workflows/osv-scanner-reusable-pr.yml@a345acffa64b0eaede81a3d9aae6141214d9c8fc # v2.6.0
-    with:
-      # Code scanning needs GitHub Advanced Security on private repositories; fail the job instead.
-      upload-sarif: false
-      scan-args: |-
-        --lockfile=pnpm-lock.yaml
-
+  # Pull requests get the same full lockfile scan as the pre-push gate. A diff scan also scans the
+  # base branch, which fails when the base has no lockfile, and pre-push cannot reproduce that.
   scan:
     name: Scan
-    if: github.event_name != 'pull_request'
     permissions:
       actions: read # Needed by the reusable workflow to read workflow run metadata.
       contents: read
