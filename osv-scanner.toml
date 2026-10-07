@@ -1,0 +1,4 @@
+# Mirrors the pnpm audit ignore in pnpm-workspace.yaml. Remove both when braces ships a fix.
+[[IgnoredVulns]]
+id = "GHSA-vfj7-8cjw-p6xm"
+reason = "No patched braces release; dev-only via @next/eslint-plugin-next > fast-glob > micromatch."

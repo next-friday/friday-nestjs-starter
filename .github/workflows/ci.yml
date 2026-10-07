@@ -1,0 +1,229 @@
+name: Verify
+
+on:
+  pull_request: {}
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  changes:
+    name: Detect Changes
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read # Needed by paths-filter to inspect pull request changes.
+    outputs:
+      heavy: ${{ steps.filter.outputs.heavy }}
+      ci_policy: ${{ steps.filter.outputs.ci_policy }}
+      full_verification: ${{ steps.mode.outputs.full_verification }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - name: Detect relevant changes
+        id: filter
+        uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
+        with:
+          predicate-quantifier: some-with-excludes
+          filters: .github/file-filters.yml
+      - name: Select verification mode
+        id: mode
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          HEAVY: ${{ steps.filter.outputs.heavy }}
+          CI_POLICY: ${{ steps.filter.outputs.ci_policy }}
+        run: |
+          full_verification=false
+          if [[ "$EVENT_NAME" == "push" || ( "$EVENT_NAME" == "pull_request" && ( "$HEAVY" == "true" || "$CI_POLICY" == "true" ) ) ]]; then
+            full_verification=true
+          fi
+
+          echo "full_verification=$full_verification" >> "$GITHUB_OUTPUT"
+
+  lint:
+    name: Lint
+    needs: changes
+    if: needs.changes.outputs.full_verification == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - name: Set up pnpm
+        uses: $/.github/actions/setup-pnpm
+      - name: Check lint
+        run: pnpm lint:check
+
+  format:
+    name: Format & Manifests
+    needs: changes
+    if: needs.changes.outputs.full_verification == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - name: Set up pnpm
+        uses: $/.github/actions/setup-pnpm
+      - name: Check formatting
+        run: pnpm format:check
+      - name: Check package.json ordering
+        run: pnpm sort-package-json:check
+      - name: Validate peer dependency contracts
+        run: pnpm peers:check
+
+  test:
+    name: Test & Coverage
+    needs: changes
+    if: needs.changes.outputs.full_verification == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Set up pnpm
+        uses: $/.github/actions/setup-pnpm
+      - name: Run tests with coverage
+        run: pnpm test:coverage
+      - name: Check patch coverage
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: node scripts/check-patch-coverage.ts --compare-branch "origin/$BASE_REF" --fail-under 95 coverage/lcov.info
+
+  e2e:
+    name: E2E
+    needs: changes
+    if: needs.changes.outputs.full_verification == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:17-alpine@sha256:b0f9560a2de083e2cc7382e75f808c7381a32852a7ec49117deedb300e552b24
+        env:
+          POSTGRES_DB: friday_nestjs_starter
+          POSTGRES_PASSWORD: postgres # Ephemeral CI-only database.
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgres://postgres:postgres@localhost:5432/friday_nestjs_starter
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - name: Set up pnpm
+        uses: $/.github/actions/setup-pnpm
+      - name: Run e2e tests
+        run: pnpm test:e2e
+
+  build:
+    name: Build
+    needs: changes
+    if: needs.changes.outputs.full_verification == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - name: Set up pnpm
+        uses: $/.github/actions/setup-pnpm
+      - name: Build application
+        run: pnpm build
+
+  check-types:
+    name: Type Check
+    needs: changes
+    if: needs.changes.outputs.full_verification == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - name: Set up pnpm
+        uses: $/.github/actions/setup-pnpm
+      - name: Check types
+        run: pnpm typecheck
+
+  knip:
+    name: Knip & Dependency Graph
+    needs: changes
+    if: needs.changes.outputs.full_verification == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - name: Set up pnpm
+        uses: $/.github/actions/setup-pnpm
+      - name: Run Knip
+        run: pnpm knip
+      - name: Check dependency graph
+        run: pnpm depcruise
+
+  audit:
+    name: Dependency Audit
+    needs: changes
+    if: needs.changes.outputs.full_verification == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - name: Set up pnpm
+        uses: $/.github/actions/setup-pnpm
+      - name: Audit dependencies
+        run: pnpm audit
+
+  ci:
+    name: All Checks
+    if: always()
+    timeout-minutes: 5
+    needs:
+      - changes
+      - lint
+      - format
+      - test
+      - e2e
+      - build
+      - check-types
+      - knip
+      - audit
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require all verification jobs
+        if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
+        run: exit 1
