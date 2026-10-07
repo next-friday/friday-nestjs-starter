@@ -53,7 +53,7 @@ On GitHub Free, a private repository has no branch protection. CI results do not
 | 6.5.3 Pre-production separated from production                   | GitHub Environments and separate infrastructure                                                              | Outside repo |
 | 6.5.5 No live PANs in pre-production                             | gitleaks `primary-account-number` rule in pre-push and CI                                                    | Implemented  |
 | 8.2, 8.3, 8.4 Identification, authentication, MFA                | GitHub org SSO and MFA; the starter ships no end-user authentication                                         | Outside repo |
-| 8.6.2 No hard-coded credentials                                  | gitleaks in pre-push and CI; TruffleHog in CI                                                                | Implemented  |
+| 8.6.2 No hard-coded credentials                                  | gitleaks and TruffleHog in pre-push and CI                                                                   | Implemented  |
 | 10.2.1, 10.2.2 Audit log content                                 | Request logs with ID, method, URL, status, and timing. Add user identity once auth exists                    | Partial      |
 | 10.3, 10.5.1, 10.6 Log protection, 12-month retention, time sync | Log platform and infrastructure                                                                              | Outside repo |
 | 11.3 Internal and external vulnerability scans                   | Quarterly ASV scans of the deployed environment                                                              | Outside repo |

@@ -82,6 +82,9 @@ jobs:
         uses: $/.github/actions/setup-pnpm
       - name: Check formatting
         run: pnpm format:check
+        env:
+          # editorconfig-checker downloads its binary through the GitHub API; unauthenticated calls hit the shared runner rate limit.
+          GITHUB_TOKEN: ${{ github.token }}
       - name: Check package.json ordering
         run: pnpm sort-package-json:check
       - name: Validate peer dependency contracts

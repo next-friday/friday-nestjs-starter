@@ -74,8 +74,8 @@ Local hooks mirror repository policy:
 - `commit-msg` → Commitlint (`type(scope): subject`, lowercase scope, no body or footer)
 - `pre-commit` → lint-staged: ESLint and Prettier, plus `sort-package-json` for `package.json`
 - `pre-push` is built for edit-push loops:
-  - It requires every pushed ref to match the checked-out commit, then scans outgoing commits with Gitleaks.
-  - When non-doc files changed, it requires a clean tree and a reachable `DATABASE_URL`. It then runs each `pnpm <script>` from the `verify` script as its own gate, followed by patch coverage (against `<remote>/main`, falling back to `origin/main` or `main`) and `pnpm audit`.
+  - It requires every pushed ref to match the checked-out commit, then scans outgoing commits with Gitleaks and TruffleHog.
+  - When non-doc files changed, it requires a clean tree and a reachable `DATABASE_URL`. It then runs zizmor, OSV-Scanner, and Semgrep with the versions and arguments of their workflows, and each `pnpm <script>` from the `verify` script as its own gate, with `DATABASE_URL` unset for every gate except `test:e2e` to match CI, followed by patch coverage (against `<remote>/main`, falling back to `origin/main` or `main`) and `pnpm audit`.
   - It stops at the first failing gate and prints only that gate's last 40 lines. The full log is in `.git/pre-push/<gate>.log`.
   - The last line is the verdict: `pre-push: PASS tree=<sha>` or `pre-push: FAIL gate=<name> rerun="<command>" log=<path>`. Run the `rerun` command to reproduce the failure without pushing.
   - Trees that passed are recorded in `.git/pre-push/passed-trees`. Pushing the same tree again, as with an amended message or a retried push, skips the gates.

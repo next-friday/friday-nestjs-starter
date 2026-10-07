@@ -70,9 +70,12 @@ resolve_compare_branch() {
   return 1
 }
 
-if ! command -v gitleaks > /dev/null 2>&1; then
-  fail preflight "brew install gitleaks" ""
-fi
+# Each CI scanner has a local gate, so these tools must be installed (uv provides uvx).
+for tool in gitleaks trufflehog osv-scanner uv gh; do
+  if ! command -v "$tool" > /dev/null 2>&1; then
+    fail preflight "brew install $tool" ""
+  fi
+done
 
 while IFS=' ' read -r local_ref local_oid remote_ref remote_oid || [ -n "${local_ref:-}" ]; do
   : "$local_ref" "$remote_ref"
@@ -91,13 +94,18 @@ while IFS=' ' read -r local_ref local_oid remote_ref remote_oid || [ -n "${local
 
   if [ "$remote_oid" = "$zero" ]; then
     log_opts="$local_oid --not --remotes=$remote_name"
+    since_opt=""
   elif git cat-file -e "$remote_oid^{commit}" 2> /dev/null; then
     log_opts="$remote_oid..$local_oid"
+    since_opt="--since-commit=$remote_oid"
   else
     log_opts="$local_oid --not --remotes=$remote_name"
+    since_opt=""
   fi
 
   run_gate secrets "gitleaks git --redact --no-banner --log-opts='$log_opts' ."
+  # Mirrors the TruffleHog job in .github/workflows/secret-scan.yml.
+  run_gate trufflehog "trufflehog git file://. --branch=$local_oid $since_opt --results=verified,unknown --fail --no-update"
 
   if git log -m --format= --name-only $log_opts -- \
     . \
@@ -149,9 +157,19 @@ fi
 
 started=$(date +%s)
 
+# Versions and arguments mirror .github/workflows/zizmor.yml, osv-scanner.yml, and sast.yml.
+run_gate zizmor 'GH_TOKEN=$(gh auth token) uvx zizmor@1.30.1 --persona pedantic .github'
+run_gate osv-scanner "osv-scanner scan --lockfile=pnpm-lock.yaml"
+run_gate semgrep "uvx semgrep@1.179.0 scan --config p/owasp-top-ten --config p/typescript --config p/nodejsscan --config p/secrets --severity ERROR --severity WARNING --error --metrics=off --quiet src test scripts"
+
 # One gate per `pnpm <script>` in the verify script, in its order.
+# CI exposes DATABASE_URL only to the E2E job, so every other gate runs without it.
 for script in $(node -p 'require("./package.json").scripts.verify.split("&&").map((step) => step.trim().replace(/^pnpm /u, "")).join(" ")'); do
-  run_gate "$script" "pnpm $script"
+  if [ "$script" = "test:e2e" ]; then
+    run_gate "$script" "pnpm $script"
+  else
+    run_gate "$script" "env -u DATABASE_URL pnpm $script"
+  fi
 done
 
 run_gate patch-coverage "node scripts/check-patch-coverage.ts --compare-branch $compare_branch --fail-under 95 coverage/lcov.info"

@@ -9,7 +9,7 @@ corepack enable
 pnpm install
 ```
 
-The `pre-push` hook requires [`gitleaks`](https://github.com/gitleaks/gitleaks).
+The `pre-push` hook runs the same scanners as CI. Install them and sign in to `gh`: `brew install gitleaks trufflehog osv-scanner uv gh`.
 
 ## Run
 

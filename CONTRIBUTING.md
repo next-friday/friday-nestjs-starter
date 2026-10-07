@@ -7,7 +7,7 @@ Use this guide to prepare changes to the Next Friday NestJS starter.
 - Use the Node.js version declared by `.nvmrc` and `package.json#engines`.
 - Use the pnpm version declared by `package.json#packageManager` through Corepack.
 - Run PostgreSQL locally and export `DATABASE_URL`. E2E tests and `pnpm verify` need it.
-- Install [`gitleaks`](https://github.com/gitleaks/gitleaks). The `pre-push` hook requires it.
+- Install the scanners the `pre-push` hook shares with CI, and sign in to `gh`: `brew install gitleaks trufflehog osv-scanner uv gh`.
 
 From the repository root:
 
