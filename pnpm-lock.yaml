@@ -179,8 +179,8 @@ importers:
         specifier: ^12.0.1
         version: 12.1.2(@nestjs/common@12.1.2(class-transformer@0.5.1)(class-validator@0.15.1)(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@7.2.0))(@nestjs/platform-express@12.1.2)(reflect-metadata@0.2.2)(rxjs@7.8.2)
       '@nestjs/observe':
-        specifier: ^0.3.0
-        version: 0.3.5(@nestjs/common@12.1.2(class-transformer@0.5.1)(class-validator@0.15.1)(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@7.2.0))(@nestjs/core@12.1.2)(reflect-metadata@0.2.2)(rxjs@7.8.2)
+        specifier: ^0.3.6
+        version: 0.3.6(@nestjs/common@12.1.2(class-transformer@0.5.1)(class-validator@0.15.1)(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@7.2.0))(@nestjs/core@12.1.2)(reflect-metadata@0.2.2)(rxjs@7.8.2)
       '@nestjs/platform-express':
         specifier: ^12.0.1
         version: 12.1.2(@nestjs/common@12.1.2(class-transformer@0.5.1)(class-validator@0.15.1)(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@7.2.0))(@nestjs/core@12.1.2)(supports-color@7.2.0)
@@ -1290,8 +1290,8 @@ packages:
     engines: {node: '>= 20.0.0'}
     hasBin: true
 
-  '@nestjs/observe@0.3.5':
-    resolution: {integrity: sha512-qulbdzPS/TPoat8Ik6l3PKkBP6D3AzMDExw/N/OVLmulmWuyV8RoTmRUvTTEvTnF3F2JiXOmwhRsf68gmGFm+A==}
+  '@nestjs/observe@0.3.6':
+    resolution: {integrity: sha512-gtra2tdzT/dUysQ9BhjuNaYef3TA76TWHgEjGY18ozgU7InB+1AOuicXuQHEZerrTnKCGZZSCpiNoHwaj2KGug==}
     engines: {node: '>= 20.19.0'}
     peerDependencies:
       '@nestjs/bull': ^11.0.0 || ^12.0.0
@@ -6012,7 +6012,7 @@ snapshots:
       ora: 5.4.1
       undici: 6.29.0
 
-  '@nestjs/observe@0.3.5(@nestjs/common@12.1.2(class-transformer@0.5.1)(class-validator@0.15.1)(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@7.2.0))(@nestjs/core@12.1.2)(reflect-metadata@0.2.2)(rxjs@7.8.2)':
+  '@nestjs/observe@0.3.6(@nestjs/common@12.1.2(class-transformer@0.5.1)(class-validator@0.15.1)(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@7.2.0))(@nestjs/core@12.1.2)(reflect-metadata@0.2.2)(rxjs@7.8.2)':
     dependencies:
       '@jridgewell/trace-mapping': 0.3.31
       '@nestjs/common': 12.1.2(class-transformer@0.5.1)(class-validator@0.15.1)(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@7.2.0)
@@ -6474,7 +6474,7 @@ snapshots:
       '@typescript-eslint/utils': 8.71.0(eslint@10.11.0(jiti@2.7.0)(supports-color@7.2.0))(supports-color@7.2.0)(typescript@6.0.3)
       '@typescript-eslint/visitor-keys': 8.71.0
       eslint: 10.11.0(jiti@2.7.0)(supports-color@7.2.0)
-      ignore: 7.0.11
+      ignore: 7.0.12
       natural-compare: 1.4.0
       ts-api-utils: 2.5.0(typescript@6.0.3)
       typescript: 6.0.3
